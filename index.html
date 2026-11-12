@@ -51,7 +51,7 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:13px}label{font-size:12px;fo
 <body>
 <header><div class="wrap nav">
 <a class="brand" href="#">Ali<span>Deals</span></a>
-<div class="navright"><button class="pill" id="adminBtn">＋ Add product</button></div>
+<div class="navright"></div>
 </div></header>
 <section class="hero"><div class="wrap hero-inner">
 <div><div class="eyebrow">Find your next great find</div><h1>Good finds.<br>Great deals.</h1><p>Explore hand-picked products and discover something you’ll love. When you’re ready, shop directly with the retailer.</p></div>
@@ -97,7 +97,6 @@ function render(){
  <div class="cardbody"><div class="category">${escapeHtml(p.category||'Featured')}</div><div class="product-title">${escapeHtml(p.name)}</div>
  ${p.description?`<p class="description">${escapeHtml(p.description)}</p>`:''}
  <div class="bottom"><div class="price">${escapeHtml(p.price||'')}</div><a class="buy" href="${escapeHtml(p.link)}" target="_blank" rel="sponsored nofollow noopener">Shop now ↗</a></div>
- <div class="admin-tools" style="margin-top:13px"><button class="edit" data-edit="${p.id}">Edit</button><button class="delete" data-delete="${p.id}">Delete</button></div>
  </div></article>`).join(''):`<div class="empty"><div style="font-size:34px;margin-bottom:10px">✦</div><strong>${products.length?'No matching products':'Your showcase is ready'}</strong><p>${products.length?'Try a different search.':'Select “Add product” to upload your first product image and affiliate link.'}</p></div>`;
 }
 function openModal(p){
