@@ -51,7 +51,7 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:13px}label{font-size:12px;fo
 <body>
 <header><div class="wrap nav">
 <a class="brand" href="#">Ali<span>Deals</span></a>
-<div class="navright"></div>
+<div class="navright"><button class="pill" id="loginBtn">Admin login</button><button class="pill" id="adminBtn" style="display:none">＋ Add product</button><button class="pill" id="logoutBtn" style="display:none">Log out</button></div>
 </div></header>
 <section class="hero"><div class="wrap hero-inner">
 <div><div class="eyebrow">Find your next great find</div><h1>Good finds.<br>Great deals.</h1><p>Explore hand-picked products and discover something you’ll love. When you’re ready, shop directly with the retailer.</p></div>
@@ -89,7 +89,7 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:13px}label{font-size:12px;fo
 <div class="field full"><label for="description">Short description (optional)</label><textarea id="description" maxlength="220" placeholder="A short note about this product…"></textarea></div>
 <div class="actions"><button type="button" class="secondary" id="cancelBtn">Cancel</button><button type="submit" class="primary">Save product</button></div>
 </form>
-<p class="note">Products are saved in this browser on this device using local storage. Use the same browser to manage them. Your affiliate links open in a new tab.</p>
+<p class="note">Products are saved securely in the AliDeals database. Only the authorized admin can manage products.</p>
 </div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
