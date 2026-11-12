@@ -63,6 +63,18 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:13px}label{font-size:12px;fo
 </main>
 <footer><div class="wrap footerrow"><div><strong>AliDeals</strong><br>Discover products from across the marketplace.</div><div>Affiliate disclosure: Some links on this website are affiliate links. If you buy through them, we may earn a commission at no extra cost to you. AliDeals is an independent showcase and is not affiliated with or endorsed by AliExpress.</div></div></footer>
 
+
+<div class="modal-backdrop" id="loginModal">
+<div class="modal">
+<div class="modalhead"><h3>AliDeals Admin Login</h3><button class="close" id="closeLogin" aria-label="Close">×</button></div>
+<form id="loginForm">
+<div class="field full"><label for="loginEmail">Email address</label><input id="loginEmail" type="email" required autocomplete="username" placeholder="Your admin email"></div>
+<div class="field full"><label for="loginPassword">Password</label><input id="loginPassword" type="password" required autocomplete="current-password" placeholder="Your password"></div>
+<div class="actions"><button type="button" class="secondary" id="cancelLogin">Cancel</button><button type="submit" class="primary">Log in</button></div>
+</form>
+<p class="note" id="loginMessage">Admin access only. Never share your password.</p>
+</div></div>
+
 <div class="modal-backdrop" id="modal">
 <div class="modal">
 <div class="modalhead"><h3 id="modalTitle">Add a product</h3><button class="close" id="closeModal" aria-label="Close">×</button></div>
@@ -79,58 +91,96 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:13px}label{font-size:12px;fo
 </form>
 <p class="note">Products are saved in this browser on this device using local storage. Use the same browser to manage them. Your affiliate links open in a new tab.</p>
 </div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-const KEY='alideals_products_v1';
-let products=[];
-const $=id=>document.getElementById(id);
-function load(){try{products=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){products=[]}}
-function save(){localStorage.setItem(KEY,JSON.stringify(products))}
+const SUPABASE_URL = 'https://rjkvadeytgtzrjvhvbxp.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_DbRIZUSRAC5QGOGsv6m6rQ_ECBzCccW';
+const ADMIN_UID = '812ac92e-58de-4ccc-9c1e-76e726513520';
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let products = [];
+let currentSession = null;
+const $ = id => document.getElementById(id);
+const isAdmin = () => currentSession?.user?.id === ADMIN_UID;
 function safeUrl(value){try{const u=new URL(value);return ['http:','https:'].includes(u.protocol)?u.href:''}catch(e){return ''}}
 function escapeHtml(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function loadProducts(){
+ const {data,error}=await db.from('products').select('*').order('created_at',{ascending:false});
+ if(error){console.error(error);$('products').innerHTML='<div class="empty">Could not load products. Please refresh the page.</div>';return}
+ products=data||[];render();
+}
 function render(){
  const term=$('search').value.trim().toLowerCase();
  const shown=products.filter(p=>(p.name+' '+(p.category||'')+' '+(p.description||'')).toLowerCase().includes(term));
- $('count').textContent=`${products.length} product${products.length===1?'':'s'}`;
+ $('count').textContent=products.length+' product'+(products.length===1?'':'s');
  $('products').innerHTML=shown.length?shown.map(p=>`
  <article class="card">
- <div class="photo">${p.image?`<img src="${p.image}" alt="${escapeHtml(p.name)}" loading="lazy">`:'<div class="placeholder">✦</div>'}</div>
+ <div class="photo">${p.image_url?'<img src="'+escapeHtml(p.image_url)+'" alt="'+escapeHtml(p.name)+'" loading="lazy">':'<div class="placeholder">✦</div>'}</div>
  <div class="cardbody"><div class="category">${escapeHtml(p.category||'Featured')}</div><div class="product-title">${escapeHtml(p.name)}</div>
- ${p.description?`<p class="description">${escapeHtml(p.description)}</p>`:''}
- <div class="bottom"><div class="price">${escapeHtml(p.price||'')}</div><a class="buy" href="${escapeHtml(p.link)}" target="_blank" rel="sponsored nofollow noopener">Shop now ↗</a></div>
- </div></article>`).join(''):`<div class="empty"><div style="font-size:34px;margin-bottom:10px">✦</div><strong>${products.length?'No matching products':'Your showcase is ready'}</strong><p>${products.length?'Try a different search.':'Select “Add product” to upload your first product image and affiliate link.'}</p></div>`;
+ ${p.description?'<p class="description">'+escapeHtml(p.description)+'</p>':''}
+ <div class="bottom"><div class="price">${escapeHtml(p.price||'')}</div><a class="buy" href="${escapeHtml(p.affiliate_url)}" target="_blank" rel="sponsored nofollow noopener">Shop now ↗</a></div>
+ ${isAdmin()?'<div class="admin-tools" style="margin-top:13px"><button class="edit" data-edit="'+p.id+'">Edit</button><button class="delete" data-delete="'+p.id+'">Delete</button></div>':''}
+ </div></article>`).join(''):`<div class="empty"><div style="font-size:34px;margin-bottom:10px">✦</div><strong>${products.length?'No matching products':'Your showcase is ready'}</strong><p>${products.length?'Try a different search.':'Products will appear here when you add them from the admin panel.'}</p></div>`;
 }
-function openModal(p){
- $('productForm').reset();$('productId').value=p?.id||'';$('modalTitle').textContent=p?'Edit product':'Add a product';
+function syncAdminUI(){
+ $('loginBtn').style.display=isAdmin()?'none':'inline-block';
+ $('adminBtn').style.display=isAdmin()?'inline-block':'none';
+ $('logoutBtn').style.display=isAdmin()?'inline-block':'none';
+ render();
+}
+function openProduct(p){
+ $('productForm').reset();$('productId').value=p?.id||'';
+ $('modalTitle').textContent=p?'Edit product':'Add a product';
  $('pname').value=p?.name||'';$('price').value=p?.price||'';$('category').value=p?.category||'';
- $('imageUrl').value=p?.image?.startsWith('data:')?'':(p?.image||'');$('affiliate').value=p?.link||'';$('description').value=p?.description||'';
- $('modal').classList.add('open');$('pname').focus();
+ $('imageUrl').value=p?.image_url||'';$('affiliate').value=p?.affiliate_url||'';
+ $('description').value=p?.description||'';$('modal').classList.add('open');
 }
-function closeModal(){$('modal').classList.remove('open')}
-$('adminBtn').addEventListener('click',()=>openModal());
-$('closeModal').addEventListener('click',closeModal);$('cancelBtn').addEventListener('click',closeModal);
-$('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal()});
+function closeProduct(){$('modal').classList.remove('open')}
+function openLogin(){$('loginMessage').textContent='Admin access only. Never share your password.';$('loginModal').classList.add('open')}
+function closeLogin(){$('loginModal').classList.remove('open')}
+$('loginBtn').addEventListener('click',openLogin);
+$('closeLogin').addEventListener('click',closeLogin);
+$('cancelLogin').addEventListener('click',closeLogin);
+$('loginModal').addEventListener('click',e=>{if(e.target===$('loginModal'))closeLogin()});
+$('loginForm').addEventListener('submit',async e=>{
+ e.preventDefault();$('loginMessage').textContent='Signing in…';
+ const {data,error}=await db.auth.signInWithPassword({email:$('loginEmail').value.trim(),password:$('loginPassword').value});
+ if(error){$('loginMessage').textContent='Login failed: '+error.message;return}
+ currentSession=data.session;syncAdminUI();closeLogin();$('loginForm').reset();
+ if(!isAdmin()){await db.auth.signOut();currentSession=null;syncAdminUI();alert('This account is not authorized as the AliDeals admin.');return}
+});
+$('logoutBtn').addEventListener('click',async()=>{await db.auth.signOut();currentSession=null;syncAdminUI()});
+$('adminBtn').addEventListener('click',()=>{if(isAdmin())openProduct()});
+$('closeModal').addEventListener('click',closeProduct);$('cancelBtn').addEventListener('click',closeProduct);
+$('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeProduct()});
 $('search').addEventListener('input',render);
-$('products').addEventListener('click',e=>{
+$('products').addEventListener('click',async e=>{
  const edit=e.target.dataset.edit,del=e.target.dataset.delete;
- if(edit){const p=products.find(x=>x.id===edit);if(p)openModal(p)}
- if(del&&confirm('Delete this product from your showcase?')){products=products.filter(x=>x.id!==del);save();render()}
+ if(!isAdmin())return;
+ if(edit){const p=products.find(x=>x.id===edit);if(p)openProduct(p)}
+ if(del&&confirm('Delete this product from your showcase?')){
+  const {error}=await db.from('products').delete().eq('id',del);
+  if(error){alert('Delete failed: '+error.message);return}
+  await loadProducts();
+ }
 });
 $('productForm').addEventListener('submit',async e=>{
- e.preventDefault();
- const id=$('productId').value,old=products.find(x=>x.id===id);
- let image=safeUrl($('imageUrl').value.trim())||old?.image||'';
- const file=$('imageFile').files[0];
- if(file){if(file.size>2*1024*1024){alert('Please choose an image smaller than 2 MB.');return}
- image=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)})}
+ e.preventDefault();if(!isAdmin()){alert('Please log in as admin.');return}
+ const id=$('productId').value;
  const link=safeUrl($('affiliate').value.trim());
- if(!link){alert('Please enter a valid http or https affiliate link.');return}
- const item={id:id||crypto.randomUUID(),name:$('pname').value.trim(),price:$('price').value.trim(),category:$('category').value.trim(),image,link,description:$('description').value.trim()};
- if(!item.name){alert('Please enter a product name.');return}
- if(old)products=products.map(x=>x.id===id?item:x);else products.unshift(item);
- try{save()}catch(err){alert('Could not save. The image may be too large; try using an image URL or a smaller file.');return}
- closeModal();render();
+ const image=safeUrl($('imageUrl').value.trim());
+ if(!link){alert('Please enter a valid affiliate link.');return}
+ if($('imageUrl').value.trim()&&!image){alert('Please enter a valid image URL.');return}
+ const item={name:$('pname').value.trim(),price:$('price').value.trim(),category:$('category').value.trim(),image_url:image||null,affiliate_url:link,description:$('description').value.trim()};
+ const result=id?await db.from('products').update(item).eq('id',id):await db.from('products').insert(item);
+ if(result.error){alert('Could not save product: '+result.error.message);return}
+ closeProduct();await loadProducts();
 });
-load();render();
+db.auth.getSession().then(({data})=>{currentSession=data.session;syncAdminUI()});
+db.auth.onAuthStateChange((_event,session)=>{currentSession=session;syncAdminUI()});
+$('imageFile').disabled=true;
+$('imageFile').title='Use an image URL for now.';
+loadProducts();
 </script>
 </body>
 </html>
