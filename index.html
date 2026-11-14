@@ -83,7 +83,7 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:13px}label{font-size:12px;fo
 <div class="field full"><label for="pname">Product name *</label><input id="pname" required maxlength="100" placeholder="e.g. Wireless Bluetooth Headphones"></div>
 <div class="field"><label for="price">Price (optional)</label><input id="price" maxlength="30" placeholder="e.g. $19.99"></div>
 <div class="field"><label for="category">Category (optional)</label><input id="category" maxlength="40" placeholder="e.g. Electronics"></div>
-<div class="field full"><label for="imageFile">Browse Image (optional)</label><input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp"></div>
+<div class="field full"><label>Product Image (optional)</label><div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="secondary" id="searchImageBtn">Search Image on Google</button><label for="imageFile" class="secondary" style="display:inline-flex;align-items:center;margin:0;cursor:pointer">Browse Image</label><input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp" style="display:none"></div><p class="note" style="margin-top:8px">Search Google Images, download the image, then choose it with Browse Image.</p></div>
 <div class="field full" id="imagePreview" style="display:none"><img id="imagePreviewImg" alt="Selected image preview" style="max-width:100%;max-height:180px;border-radius:12px;object-fit:contain;background:#f0ebf8"></div>
 <div class="field full"><label for="affiliate">AliExpress affiliate link *</label><input id="affiliate" type="url" required placeholder="https://…"></div>
 <div class="field full"><label for="description">Short description (optional)</label><textarea id="description" maxlength="220" placeholder="A short note about this product…"></textarea></div>
@@ -158,6 +158,11 @@ $('adminBtn').addEventListener('click',()=>{if(isAdmin())openProduct()});
 $('closeModal').addEventListener('click',closeProduct);$('cancelBtn').addEventListener('click',closeProduct);
 $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeProduct()});
 $('search').addEventListener('input',render);
+$('searchImageBtn').addEventListener('click',()=>{
+ const name=$('pname').value.trim();
+ if(!name){alert('Please enter the product name first.');$('pname').focus();return;}
+ window.open('https://www.google.com/search?tbm=isch&q='+encodeURIComponent(name),'_blank','noopener');
+});
 $('imageFile').addEventListener('change',()=>{
  const file=$('imageFile').files[0];
  if(!file){selectedImageUrl=null;showImagePreview(null);return;}
