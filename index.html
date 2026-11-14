@@ -84,6 +84,7 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:13px}label{font-size:12px;fo
 <div class="field"><label for="price">Price (optional)</label><input id="price" maxlength="30" placeholder="e.g. $19.99"></div>
 <div class="field"><label for="category">Category (optional)</label><input id="category" maxlength="40" placeholder="e.g. Electronics"></div>
 <div class="field full"><label for="imageUrl">Link Image (optional)</label><input id="imageUrl" type="url" placeholder="Paste image link here (https://...)"><p class="note" style="margin-top:8px">Paste the direct image link from Chrome or Google Images.</p></div>
+<div class="field full" id="imagePreview" style="display:none"><img id="imagePreviewImg" alt="Image preview" style="max-width:100%;max-height:180px;border-radius:12px;object-fit:contain;background:#f0ebf8"></div>
 <div class="field full"><label for="affiliate">AliExpress affiliate link *</label><input id="affiliate" type="url" required placeholder="https://…"></div>
 <div class="field full"><label for="description">Short description (optional)</label><textarea id="description" maxlength="220" placeholder="A short note about this product…"></textarea></div>
 <div class="actions"><button type="button" class="secondary" id="cancelBtn">Cancel</button><button type="submit" class="primary">Save product</button></div>
