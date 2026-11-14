@@ -47,6 +47,7 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:13px}label{font-size:12px;fo
 @media(max-width:800px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-inner{grid-template-columns:1fr .45fr}.hero-art{min-height:150px;font-size:55px}}
 @media(max-width:560px){.wrap{padding:0 16px}.nav{height:64px}.brand{font-size:22px}.hero{padding:42px 0}.hero-inner{grid-template-columns:1fr}.hero-art{display:none}h1{letter-spacing:-1.8px}.grid{grid-template-columns:1fr}.photo{height:245px}.toolbar{align-items:stretch}.search{width:100%}form{grid-template-columns:1fr}.field.full,.actions{grid-column:auto}.navright .pill{padding:9px 11px;font-size:12px}}
 .view-product{background:#f1edf7;color:#4c1d95;border:1px solid #e4d9f5;border-radius:11px;padding:11px 14px;font-weight:800;font-size:13px;cursor:pointer}.detail-photo{width:100%;max-height:300px;object-fit:contain;background:#f0ebf8;border-radius:14px}.detail-price{font-size:24px;font-weight:850;margin:12px 0}.detail-description{color:var(--muted);line-height:1.6;white-space:pre-wrap}
+.admin-analytics{margin:26px 0 30px;padding:22px;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 5px 18px #2f175008}.analytics-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}.analytics-heading h2{margin:5px 0}.stats-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.stat-card{background:#f7f3ff;border:1px solid #e9e0f8;border-radius:14px;padding:17px}.stat-label{font-size:13px;color:var(--muted);font-weight:700}.stat-number{font-size:30px;font-weight:850;color:var(--purple);margin-top:7px}.analytics-list{margin-top:24px}.analytics-list h3{margin:0 0 12px}.analytics-row{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}.analytics-row:last-child{border-bottom:0}.analytics-row strong{font-variant-numeric:tabular-nums}@media(max-width:650px){.stats-grid{grid-template-columns:1fr}.analytics-heading{align-items:flex-start;flex-direction:column}}
 </style>
 </head>
 <body>
@@ -60,6 +61,17 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:13px}label{font-size:12px;fo
 </div></section>
 <main class="wrap">
 <div class="toolbar"><div><h2>Featured finds</h2><div class="count" id="count">0 products</div></div><input class="search" id="search" type="search" placeholder="Search products…"></div>
+<section class="admin-analytics" id="analyticsPanel" style="display:none">
+ <div class="analytics-heading"><div><div class="eyebrow">Admin dashboard</div><h2>Website analytics</h2><p class="note">Visitor and product views recorded by AliDeals.</p></div><button class="secondary" type="button" id="refreshAnalytics">Refresh stats</button></div>
+ <div class="stats-grid">
+  <div class="stat-card"><div class="stat-label">Website views</div><div class="stat-number" id="siteViews">—</div></div>
+  <div class="stat-card"><div class="stat-label">Unique visitors*</div><div class="stat-number" id="uniqueVisitors">—</div></div>
+  <div class="stat-card"><div class="stat-label">Product views</div><div class="stat-number" id="productViews">—</div></div>
+ </div>
+ <div class="analytics-list"><h3>Views by product</h3><div id="productViewRows" class="analytics-rows">Loading…</div></div>
+ <p class="note">*Unique visitors are estimated using a browser ID. Counts begin after analytics is enabled.</p>
+ <p class="note" id="analyticsMessage"></p>
+</section>
 <div class="grid" id="products"></div>
 </main>
 <footer><div class="wrap footerrow"><div><strong>AliDeals</strong><br>Discover products from across the marketplace.</div><div>Affiliate disclosure: Some links on this website are affiliate links. If you buy through them, we may earn a commission at no extra cost to you. AliDeals is an independent showcase and is not affiliated with or endorsed by AliExpress.</div></div></footer>
@@ -109,6 +121,29 @@ const $ = id => document.getElementById(id);
 const isAdmin = () => currentSession?.user?.id === ADMIN_UID;
 function safeUrl(value){try{const u=new URL(value);return ['http:','https:'].includes(u.protocol)?u.href:''}catch(e){return ''}}
 function escapeHtml(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function getVisitorId(){
+ let id=localStorage.getItem('alideals_visitor_id');
+ if(!id){id=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2));localStorage.setItem('alideals_visitor_id',id)}
+ return id;
+}
+async function trackView(eventType,productId=null){
+ try{const {error}=await db.from('analytics_events').insert({event_type:eventType,product_id:productId?String(productId):null,visitor_id:getVisitorId()});if(error)console.warn('Analytics event was not saved:',error.message)}catch(error){console.warn('Analytics unavailable:',error)}
+}
+async function loadAnalytics(){
+ if(!isAdmin())return;
+ $('analyticsMessage').textContent='Loading analytics…';
+ const {data,error}=await db.from('analytics_events').select('event_type,product_id,visitor_id');
+ if(error){$('analyticsMessage').textContent='Analytics setup is not complete yet. Please run the SQL setup provided in ChatGPT in your Supabase SQL Editor. Details: '+error.message;return}
+ const rows=data||[],site=rows.filter(x=>x.event_type==='page_view'),product=rows.filter(x=>x.event_type==='product_view');
+ $('siteViews').textContent=site.length.toLocaleString();
+ $('uniqueVisitors').textContent=new Set(site.map(x=>x.visitor_id).filter(Boolean)).size.toLocaleString();
+ $('productViews').textContent=product.length.toLocaleString();
+ const counts={};product.forEach(x=>{counts[x.product_id]=(counts[x.product_id]||0)+1});
+ const sorted=products.map(p=>({name:p.name,views:counts[String(p.id)]||0})).sort((a,b)=>b.views-a.views);
+ $('productViewRows').innerHTML=sorted.length?sorted.map(x=>'<div class="analytics-row"><span>'+escapeHtml(x.name)+'</span><strong>'+x.views.toLocaleString()+'</strong></div>').join(''):'<p class="note">Abhi koi product view record nahi hua.</p>';
+ $('analyticsMessage').textContent='Stats updated.';
+}
+
 async function loadProducts(){
  const {data,error}=await db.from('products').select('*').order('created_at',{ascending:false});
  if(error){console.error(error);$('products').innerHTML='<div class="empty">Could not load products. Please refresh the page.</div>';return}
@@ -131,7 +166,9 @@ function syncAdminUI(){
  $('loginBtn').style.display=isAdmin()?'none':'inline-block';
  $('adminBtn').style.display=isAdmin()?'inline-block':'none';
  $('logoutBtn').style.display=isAdmin()?'inline-block':'none';
+ $('analyticsPanel').style.display=isAdmin()?'block':'none';
  render();
+ if(isAdmin())loadAnalytics();
 }
 function openProduct(p){
  $('productForm').reset();$('productId').value=p?.id||'';
@@ -147,6 +184,7 @@ function openProductDetails(p){
  $('detailTitle').textContent=p.name||'Product details';
  $('detailContent').innerHTML=(image?'<img class="detail-photo" src="'+escapeHtml(image)+'" alt="'+escapeHtml(p.name||'Product')+'">':'<div class="photo placeholder">✦</div>')+'<div class="category" style="margin-top:16px">'+escapeHtml(p.category||'Featured')+'</div><h2 style="margin:8px 0">'+escapeHtml(p.name||'')+'</h2>'+(p.price?'<div class="detail-price">'+escapeHtml(p.price)+'</div>':'')+(p.description?'<p class="detail-description">'+escapeHtml(p.description)+'</p>':'')+'<a class="buy" style="display:inline-block;margin-top:12px" href="'+escapeHtml(safeUrl(p.affiliate_url)||'#')+'" target="_blank" rel="sponsored nofollow noopener">Shop now ↗</a>';
  $('detailModal').classList.add('open');
+ if(p.id)trackView('product_view',p.id);
 }
 function previewProductForm(){openProductDetails({name:$('pname').value.trim()||'Product name',price:$('price').value.trim(),category:$('category').value.trim(),image_url:$('imageUrl').value.trim(),description:$('description').value.trim(),affiliate_url:$('affiliate').value.trim()});}
 function closeProduct(){$('modal').classList.remove('open')}
@@ -171,6 +209,7 @@ $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeProduct()}
  $('closeDetail').addEventListener('click',()=>$('detailModal').classList.remove('open'));
  $('detailModal').addEventListener('click',e=>{if(e.target===$('detailModal'))$('detailModal').classList.remove('open')});
 $('search').addEventListener('input',render);
+$('refreshAnalytics').addEventListener('click',loadAnalytics);
  $('imageUrl').addEventListener('input',()=>showImagePreview(safeUrl($('imageUrl').value.trim())||null));
 $('products').addEventListener('click',async e=>{
  const editButton=e.target.closest('[data-edit]'),deleteButton=e.target.closest('[data-delete]');
@@ -208,6 +247,7 @@ $('productForm').addEventListener('submit',async e=>{
 });
 db.auth.getSession().then(({data})=>{currentSession=data.session;syncAdminUI()});
 db.auth.onAuthStateChange((_event,session)=>{currentSession=session;syncAdminUI()});
+trackView('page_view');
 loadProducts();
 </script>
 </body>
