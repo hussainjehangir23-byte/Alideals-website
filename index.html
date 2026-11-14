@@ -83,8 +83,7 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:13px}label{font-size:12px;fo
 <div class="field full"><label for="pname">Product name *</label><input id="pname" required maxlength="100" placeholder="e.g. Wireless Bluetooth Headphones"></div>
 <div class="field"><label for="price">Price (optional)</label><input id="price" maxlength="30" placeholder="e.g. $19.99"></div>
 <div class="field"><label for="category">Category (optional)</label><input id="category" maxlength="40" placeholder="e.g. Electronics"></div>
-<div class="field full"><label>Product Image (optional)</label><div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="secondary" id="searchImageBtn">Search Image on Google</button><label for="imageFile" class="secondary" style="display:inline-flex;align-items:center;margin:0;cursor:pointer">Browse Image</label><input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp" style="display:none"></div><p class="note" style="margin-top:8px">Search Google Images, download the image, then choose it with Browse Image.</p></div>
-<div class="field full" id="imagePreview" style="display:none"><img id="imagePreviewImg" alt="Selected image preview" style="max-width:100%;max-height:180px;border-radius:12px;object-fit:contain;background:#f0ebf8"></div>
+<div class="field full"><label for="imageUrl">Link Image (optional)</label><input id="imageUrl" type="url" placeholder="Paste image link here (https://...)"><p class="note" style="margin-top:8px">Paste the direct image link from Chrome or Google Images.</p></div>
 <div class="field full"><label for="affiliate">AliExpress affiliate link *</label><input id="affiliate" type="url" required placeholder="https://…"></div>
 <div class="field full"><label for="description">Short description (optional)</label><textarea id="description" maxlength="220" placeholder="A short note about this product…"></textarea></div>
 <div class="actions"><button type="button" class="secondary" id="cancelBtn">Cancel</button><button type="submit" class="primary">Save product</button></div>
@@ -134,7 +133,7 @@ function openProduct(p){
  $('productForm').reset();$('productId').value=p?.id||'';
  $('modalTitle').textContent=p?'Edit product':'Add a product';
  $('pname').value=p?.name||'';$('price').value=p?.price||'';$('category').value=p?.category||'';
- selectedImageUrl=temporaryImages[p?.id]||p?.image_url||null;showImagePreview(selectedImageUrl);
+  $('imageUrl').value=p?.image_url||'';showImagePreview(p?.image_url||null);
  $('affiliate').value=p?.affiliate_url||'';
  $('description').value=p?.description||'';$('modal').classList.add('open');
 }
@@ -158,19 +157,7 @@ $('adminBtn').addEventListener('click',()=>{if(isAdmin())openProduct()});
 $('closeModal').addEventListener('click',closeProduct);$('cancelBtn').addEventListener('click',closeProduct);
 $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeProduct()});
 $('search').addEventListener('input',render);
-$('searchImageBtn').addEventListener('click',()=>{
- const name=$('pname').value.trim();
- if(!name){alert('Please enter the product name first.');$('pname').focus();return;}
- window.open('https://www.google.com/search?tbm=isch&q='+encodeURIComponent(name),'_blank','noopener');
-});
-$('imageFile').addEventListener('change',()=>{
- const file=$('imageFile').files[0];
- if(!file){selectedImageUrl=null;showImagePreview(null);return;}
- if(!['image/jpeg','image/png','image/webp'].includes(file.type)){alert('Please choose a JPG, PNG or WebP image.');$('imageFile').value='';return;}
- if(file.size>5*1024*1024){alert('Image must be 5 MB or smaller.');$('imageFile').value='';return;}
- if(selectedImageUrl&&selectedImageUrl.startsWith('blob:'))URL.revokeObjectURL(selectedImageUrl);
- selectedImageUrl=URL.createObjectURL(file);showImagePreview(selectedImageUrl);
-});
+ $('imageUrl').addEventListener('input',()=>showImagePreview(safeUrl($('imageUrl').value.trim())||null));
 $('products').addEventListener('click',async e=>{
  const edit=e.target.dataset.edit,del=e.target.dataset.delete;
  if(!isAdmin())return;
@@ -186,10 +173,12 @@ $('productForm').addEventListener('submit',async e=>{
  const id=$('productId').value;
  const link=safeUrl($('affiliate').value.trim());
  if(!link){alert('Please enter a valid affiliate link.');return}
- const item={name:$('pname').value.trim(),price:$('price').value.trim(),category:$('category').value.trim(),affiliate_url:link,description:$('description').value.trim()};
+  const imageValue=$('imageUrl').value.trim();
+  const imageLink=imageValue?safeUrl(imageValue):null;
+  if(imageValue&&!imageLink){alert('Please enter a valid image link beginning with http:// or https://');return;}
+  const item={name:$('pname').value.trim(),price:$('price').value.trim(),category:$('category').value.trim(),image_url:imageLink,affiliate_url:link,description:$('description').value.trim()};
  const result=id?await db.from('products').update(item).eq('id',id).select('id').single():await db.from('products').insert(item).select('id').single();
  if(result.error){alert('Could not save product: '+result.error.message);return}
- if(selectedImageUrl)temporaryImages[result.data.id]=selectedImageUrl;
  closeProduct();await loadProducts();
 });
 db.auth.getSession().then(({data})=>{currentSession=data.session;syncAdminUI()});
