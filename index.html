@@ -23,8 +23,8 @@ main{padding:35px 0 70px}.toolbar{display:flex;justify-content:space-between;ali
 h2{font-size:25px;letter-spacing:-.7px;margin:0}.count{font-size:13px;color:var(--muted);margin-top:5px}
 .search{width:min(320px,100%);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font:inherit;background:#fff;outline-color:var(--purple)}
 .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
-.card{background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 5px 18px #2f175008;display:flex;flex-direction:column;transition:transform .18s,box-shadow .18s}
-.card:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+.card{cursor:pointer;background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 5px 18px #2f175008;display:flex;flex-direction:column;transition:transform .18s,box-shadow .18s}
+.card:hover{transform:translateY(-3px);box-shadow:var(--shadow)}\n.card:focus-visible{outline:3px solid var(--purple2);outline-offset:3px}\n.admin-tools button{cursor:pointer}
 .photo{height:230px;background:#f0ebf8;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .photo img{width:100%;height:100%;object-fit:cover}.placeholder{font-size:48px;color:#a78bfa}
 .cardbody{padding:17px;display:flex;flex-direction:column;flex:1}
@@ -119,11 +119,11 @@ function render(){
  const shown=products.filter(p=>(p.name+' '+(p.category||'')+' '+(p.description||'')).toLowerCase().includes(term));
  $('count').textContent=products.length+' product'+(products.length===1?'':'s');
  $('products').innerHTML=shown.length?shown.map(p=>`
- <article class="card">
+ <article class="card" data-view="${escapeHtml(String(p.id))}" tabindex="0" role="button" aria-label="Open ${escapeHtml(p.name)} product details">
  <div class="photo">${(temporaryImages[p.id]||p.image_url)?'<img src="'+escapeHtml(temporaryImages[p.id]||p.image_url)+'" alt="'+escapeHtml(p.name)+'" loading="lazy">':'<div class="placeholder">✦</div>'}</div>
  <div class="cardbody"><div class="category">${escapeHtml(p.category||'Featured')}</div><div class="product-title">${escapeHtml(p.name)}</div>
  ${p.description?'<p class="description">'+escapeHtml(p.description)+'</p>':''}
- <div class="bottom"><div class="price">${escapeHtml(p.price||'')}</div><button type="button" class="view-product" data-view="${p.id}">View Product</button><a class="buy" href="${escapeHtml(p.affiliate_url)}" target="_blank" rel="sponsored nofollow noopener">Shop now ↗</a></div>
+ <div class="bottom"><div class="price">${escapeHtml(p.price||'')}</div></div>
  ${isAdmin()?'<div class="admin-tools" style="margin-top:13px"><button class="edit" data-edit="'+p.id+'">Edit</button><button class="delete" data-delete="'+p.id+'">Delete</button></div>':''}
  </div></article>`).join(''):`<div class="empty"><div style="font-size:34px;margin-bottom:10px">✦</div><strong>${products.length?'No matching products':'Your showcase is ready'}</strong><p>${products.length?'Try a different search.':'Products will appear here when you add them from the admin panel.'}</p></div>`;
 }
@@ -173,15 +173,25 @@ $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeProduct()}
 $('search').addEventListener('input',render);
  $('imageUrl').addEventListener('input',()=>showImagePreview(safeUrl($('imageUrl').value.trim())||null));
 $('products').addEventListener('click',async e=>{
- const view=e.target.dataset.view,edit=e.target.dataset.edit,del=e.target.dataset.delete;
-  if(view){const p=products.find(x=>x.id===view);if(p)openProductDetails(p);return}
- if(!isAdmin())return;
- if(edit){const p=products.find(x=>x.id===edit);if(p)openProduct(p)}
- if(del&&confirm('Delete this product from your showcase?')){
-  const {error}=await db.from('products').delete().eq('id',del);
-  if(error){alert('Delete failed: '+error.message);return}
-  await loadProducts();
+ const editButton=e.target.closest('[data-edit]'),deleteButton=e.target.closest('[data-delete]');
+ if(editButton||deleteButton){
+  if(!isAdmin())return;
+  const edit=editButton?.dataset.edit,del=deleteButton?.dataset.delete;
+  if(edit){const p=products.find(x=>String(x.id)===edit);if(p)openProduct(p);return}
+  if(del&&confirm('Delete this product from your showcase?')){
+   const {error}=await db.from('products').delete().eq('id',del);
+   if(error){alert('Delete failed: '+error.message);return}
+   await loadProducts();
+  }
+  return;
  }
+ const card=e.target.closest('[data-view]');
+ if(card){const p=products.find(x=>String(x.id)===card.dataset.view);if(p)openProductDetails(p)}
+});
+$('products').addEventListener('keydown',e=>{
+ if(e.key!=='Enter'&&e.key!==' ')return;
+ const card=e.target.closest('[data-view]');
+ if(card&&e.target===card){e.preventDefault();const p=products.find(x=>String(x.id)===card.dataset.view);if(p)openProductDetails(p)}
 });
 $('productForm').addEventListener('submit',async e=>{
  e.preventDefault();if(!isAdmin()){alert('Please log in as admin.');return}
