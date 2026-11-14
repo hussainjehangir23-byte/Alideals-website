@@ -127,6 +127,7 @@ function getVisitorId(){
  return id;
 }
 async function trackView(eventType,productId=null){
+ if(isAdmin())return;
  try{const {error}=await db.from('analytics_events').insert({event_type:eventType,product_id:productId?String(productId):null,visitor_id:getVisitorId()});if(error)console.warn('Analytics event was not saved:',error.message)}catch(error){console.warn('Analytics unavailable:',error)}
 }
 async function loadAnalytics(){
@@ -245,9 +246,8 @@ $('productForm').addEventListener('submit',async e=>{
  if(result.error){alert('Could not save product: '+result.error.message);return}
  closeProduct();await loadProducts();
 });
-db.auth.getSession().then(({data})=>{currentSession=data.session;syncAdminUI()});
+db.auth.getSession().then(({data})=>{currentSession=data.session;syncAdminUI();if(!isAdmin())trackView('page_view')});
 db.auth.onAuthStateChange((_event,session)=>{currentSession=session;syncAdminUI()});
-trackView('page_view');
 loadProducts();
 </script>
 </body>
