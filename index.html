@@ -83,8 +83,8 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:13px}label{font-size:12px;fo
 <div class="field full"><label for="pname">Product name *</label><input id="pname" required maxlength="100" placeholder="e.g. Wireless Bluetooth Headphones"></div>
 <div class="field"><label for="price">Price (optional)</label><input id="price" maxlength="30" placeholder="e.g. $19.99"></div>
 <div class="field"><label for="category">Category (optional)</label><input id="category" maxlength="40" placeholder="e.g. Electronics"></div>
-<div class="field full"><label for="imageUrl">Product image URL (optional)</label><input id="imageUrl" type="url" placeholder="https://…"></div>
-<div class="field full"><label for="imageFile">Or upload a product image</label><input id="imageFile" type="file" accept="image/*"></div>
+<div class="field full"><label for="imageFile">Browse Image (optional)</label><input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp"></div>
+<div class="field full" id="imagePreview" style="display:none"><img id="imagePreviewImg" alt="Selected image preview" style="max-width:100%;max-height:180px;border-radius:12px;object-fit:contain;background:#f0ebf8"></div>
 <div class="field full"><label for="affiliate">AliExpress affiliate link *</label><input id="affiliate" type="url" required placeholder="https://…"></div>
 <div class="field full"><label for="description">Short description (optional)</label><textarea id="description" maxlength="220" placeholder="A short note about this product…"></textarea></div>
 <div class="actions"><button type="button" class="secondary" id="cancelBtn">Cancel</button><button type="submit" class="primary">Save product</button></div>
@@ -100,6 +100,8 @@ const ADMIN_UID = '812ac92e-b8de-4ccc-9c1e-76e72b513520';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let products = [];
 let currentSession = null;
+const temporaryImages = Object.create(null);
+let selectedImageUrl = null;
 const $ = id => document.getElementById(id);
 const isAdmin = () => currentSession?.user?.id === ADMIN_UID;
 function safeUrl(value){try{const u=new URL(value);return ['http:','https:'].includes(u.protocol)?u.href:''}catch(e){return ''}}
@@ -115,7 +117,7 @@ function render(){
  $('count').textContent=products.length+' product'+(products.length===1?'':'s');
  $('products').innerHTML=shown.length?shown.map(p=>`
  <article class="card">
- <div class="photo">${p.image_url?'<img src="'+escapeHtml(p.image_url)+'" alt="'+escapeHtml(p.name)+'" loading="lazy">':'<div class="placeholder">✦</div>'}</div>
+ <div class="photo">${(temporaryImages[p.id]||p.image_url)?'<img src="'+escapeHtml(temporaryImages[p.id]||p.image_url)+'" alt="'+escapeHtml(p.name)+'" loading="lazy">':'<div class="placeholder">✦</div>'}</div>
  <div class="cardbody"><div class="category">${escapeHtml(p.category||'Featured')}</div><div class="product-title">${escapeHtml(p.name)}</div>
  ${p.description?'<p class="description">'+escapeHtml(p.description)+'</p>':''}
  <div class="bottom"><div class="price">${escapeHtml(p.price||'')}</div><a class="buy" href="${escapeHtml(p.affiliate_url)}" target="_blank" rel="sponsored nofollow noopener">Shop now ↗</a></div>
@@ -132,9 +134,11 @@ function openProduct(p){
  $('productForm').reset();$('productId').value=p?.id||'';
  $('modalTitle').textContent=p?'Edit product':'Add a product';
  $('pname').value=p?.name||'';$('price').value=p?.price||'';$('category').value=p?.category||'';
- $('imageUrl').value=p?.image_url||'';$('affiliate').value=p?.affiliate_url||'';
+ selectedImageUrl=temporaryImages[p?.id]||p?.image_url||null;showImagePreview(selectedImageUrl);
+ $('affiliate').value=p?.affiliate_url||'';
  $('description').value=p?.description||'';$('modal').classList.add('open');
 }
+function showImagePreview(url){$('imagePreview').style.display=url?'block':'none';$('imagePreviewImg').src=url||'';}
 function closeProduct(){$('modal').classList.remove('open')}
 function openLogin(){$('loginMessage').textContent='Admin access only. Never share your password.';$('loginModal').classList.add('open')}
 function closeLogin(){$('loginModal').classList.remove('open')}
@@ -154,6 +158,14 @@ $('adminBtn').addEventListener('click',()=>{if(isAdmin())openProduct()});
 $('closeModal').addEventListener('click',closeProduct);$('cancelBtn').addEventListener('click',closeProduct);
 $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeProduct()});
 $('search').addEventListener('input',render);
+$('imageFile').addEventListener('change',()=>{
+ const file=$('imageFile').files[0];
+ if(!file){selectedImageUrl=null;showImagePreview(null);return;}
+ if(!['image/jpeg','image/png','image/webp'].includes(file.type)){alert('Please choose a JPG, PNG or WebP image.');$('imageFile').value='';return;}
+ if(file.size>5*1024*1024){alert('Image must be 5 MB or smaller.');$('imageFile').value='';return;}
+ if(selectedImageUrl&&selectedImageUrl.startsWith('blob:'))URL.revokeObjectURL(selectedImageUrl);
+ selectedImageUrl=URL.createObjectURL(file);showImagePreview(selectedImageUrl);
+});
 $('products').addEventListener('click',async e=>{
  const edit=e.target.dataset.edit,del=e.target.dataset.delete;
  if(!isAdmin())return;
@@ -168,18 +180,15 @@ $('productForm').addEventListener('submit',async e=>{
  e.preventDefault();if(!isAdmin()){alert('Please log in as admin.');return}
  const id=$('productId').value;
  const link=safeUrl($('affiliate').value.trim());
- const image=safeUrl($('imageUrl').value.trim());
  if(!link){alert('Please enter a valid affiliate link.');return}
- if($('imageUrl').value.trim()&&!image){alert('Please enter a valid image URL.');return}
- const item={name:$('pname').value.trim(),price:$('price').value.trim(),category:$('category').value.trim(),image_url:image||null,affiliate_url:link,description:$('description').value.trim()};
- const result=id?await db.from('products').update(item).eq('id',id):await db.from('products').insert(item);
+ const item={name:$('pname').value.trim(),price:$('price').value.trim(),category:$('category').value.trim(),affiliate_url:link,description:$('description').value.trim()};
+ const result=id?await db.from('products').update(item).eq('id',id).select('id').single():await db.from('products').insert(item).select('id').single();
  if(result.error){alert('Could not save product: '+result.error.message);return}
+ if(selectedImageUrl)temporaryImages[result.data.id]=selectedImageUrl;
  closeProduct();await loadProducts();
 });
 db.auth.getSession().then(({data})=>{currentSession=data.session;syncAdminUI()});
 db.auth.onAuthStateChange((_event,session)=>{currentSession=session;syncAdminUI()});
-$('imageFile').disabled=true;
-$('imageFile').title='Use an image URL for now.';
 loadProducts();
 </script>
 </body>
