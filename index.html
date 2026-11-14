@@ -46,6 +46,7 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:13px}label{font-size:12px;fo
 .note{font-size:12px;color:#81778f;line-height:1.5;margin-top:14px}
 @media(max-width:800px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-inner{grid-template-columns:1fr .45fr}.hero-art{min-height:150px;font-size:55px}}
 @media(max-width:560px){.wrap{padding:0 16px}.nav{height:64px}.brand{font-size:22px}.hero{padding:42px 0}.hero-inner{grid-template-columns:1fr}.hero-art{display:none}h1{letter-spacing:-1.8px}.grid{grid-template-columns:1fr}.photo{height:245px}.toolbar{align-items:stretch}.search{width:100%}form{grid-template-columns:1fr}.field.full,.actions{grid-column:auto}.navright .pill{padding:9px 11px;font-size:12px}}
+.view-product{background:#f1edf7;color:#4c1d95;border:1px solid #e4d9f5;border-radius:11px;padding:11px 14px;font-weight:800;font-size:13px;cursor:pointer}.detail-photo{width:100%;max-height:300px;object-fit:contain;background:#f0ebf8;border-radius:14px}.detail-price{font-size:24px;font-weight:850;margin:12px 0}.detail-description{color:var(--muted);line-height:1.6;white-space:pre-wrap}
 </style>
 </head>
 <body>
@@ -87,10 +88,12 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:13px}label{font-size:12px;fo
 <div class="field full" id="imagePreview" style="display:none"><img id="imagePreviewImg" alt="Image preview" style="max-width:100%;max-height:180px;border-radius:12px;object-fit:contain;background:#f0ebf8"></div>
 <div class="field full"><label for="affiliate">AliExpress affiliate link *</label><input id="affiliate" type="url" required placeholder="https://…"></div>
 <div class="field full"><label for="description">Short description (optional)</label><textarea id="description" maxlength="220" placeholder="A short note about this product…"></textarea></div>
-<div class="actions"><button type="button" class="secondary" id="cancelBtn">Cancel</button><button type="submit" class="primary">Save product</button></div>
+<div class="actions"><button type="button" class="secondary" id="previewProductBtn">Preview</button><button type="button" class="secondary" id="cancelBtn">Cancel</button><button type="submit" class="primary">Save product</button></div>
 </form>
 <p class="note">Products are saved securely in the AliDeals database. Only the authorized admin can manage products.</p>
 </div></div>
+
+<div class="modal-backdrop" id="detailModal"><div class="modal"><div class="modalhead"><h3 id="detailTitle">Product details</h3><button class="close" id="closeDetail" aria-label="Close">×</button></div><div id="detailContent"></div></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -120,7 +123,7 @@ function render(){
  <div class="photo">${(temporaryImages[p.id]||p.image_url)?'<img src="'+escapeHtml(temporaryImages[p.id]||p.image_url)+'" alt="'+escapeHtml(p.name)+'" loading="lazy">':'<div class="placeholder">✦</div>'}</div>
  <div class="cardbody"><div class="category">${escapeHtml(p.category||'Featured')}</div><div class="product-title">${escapeHtml(p.name)}</div>
  ${p.description?'<p class="description">'+escapeHtml(p.description)+'</p>':''}
- <div class="bottom"><div class="price">${escapeHtml(p.price||'')}</div><a class="buy" href="${escapeHtml(p.affiliate_url)}" target="_blank" rel="sponsored nofollow noopener">Shop now ↗</a></div>
+ <div class="bottom"><div class="price">${escapeHtml(p.price||'')}</div><button type="button" class="view-product" data-view="${p.id}">View Product</button><a class="buy" href="${escapeHtml(p.affiliate_url)}" target="_blank" rel="sponsored nofollow noopener">Shop now ↗</a></div>
  ${isAdmin()?'<div class="admin-tools" style="margin-top:13px"><button class="edit" data-edit="'+p.id+'">Edit</button><button class="delete" data-delete="'+p.id+'">Delete</button></div>':''}
  </div></article>`).join(''):`<div class="empty"><div style="font-size:34px;margin-bottom:10px">✦</div><strong>${products.length?'No matching products':'Your showcase is ready'}</strong><p>${products.length?'Try a different search.':'Products will appear here when you add them from the admin panel.'}</p></div>`;
 }
@@ -139,6 +142,13 @@ function openProduct(p){
  $('description').value=p?.description||'';$('modal').classList.add('open');
 }
 function showImagePreview(url){$('imagePreview').style.display=url?'block':'none';$('imagePreviewImg').src=url||'';}
+function openProductDetails(p){
+ const image=safeUrl(p.image_url||'');
+ $('detailTitle').textContent=p.name||'Product details';
+ $('detailContent').innerHTML=(image?'<img class="detail-photo" src="'+escapeHtml(image)+'" alt="'+escapeHtml(p.name||'Product')+'">':'<div class="photo placeholder">✦</div>')+'<div class="category" style="margin-top:16px">'+escapeHtml(p.category||'Featured')+'</div><h2 style="margin:8px 0">'+escapeHtml(p.name||'')+'</h2>'+(p.price?'<div class="detail-price">'+escapeHtml(p.price)+'</div>':'')+(p.description?'<p class="detail-description">'+escapeHtml(p.description)+'</p>':'')+'<a class="buy" style="display:inline-block;margin-top:12px" href="'+escapeHtml(safeUrl(p.affiliate_url)||'#')+'" target="_blank" rel="sponsored nofollow noopener">Shop now ↗</a>';
+ $('detailModal').classList.add('open');
+}
+function previewProductForm(){openProductDetails({name:$('pname').value.trim()||'Product name',price:$('price').value.trim(),category:$('category').value.trim(),image_url:$('imageUrl').value.trim(),description:$('description').value.trim(),affiliate_url:$('affiliate').value.trim()});}
 function closeProduct(){$('modal').classList.remove('open')}
 function openLogin(){$('loginMessage').textContent='Admin access only. Never share your password.';$('loginModal').classList.add('open')}
 function closeLogin(){$('loginModal').classList.remove('open')}
@@ -157,10 +167,14 @@ $('logoutBtn').addEventListener('click',async()=>{await db.auth.signOut();curren
 $('adminBtn').addEventListener('click',()=>{if(isAdmin())openProduct()});
 $('closeModal').addEventListener('click',closeProduct);$('cancelBtn').addEventListener('click',closeProduct);
 $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeProduct()});
+ $('previewProductBtn').addEventListener('click',previewProductForm);
+ $('closeDetail').addEventListener('click',()=>$('detailModal').classList.remove('open'));
+ $('detailModal').addEventListener('click',e=>{if(e.target===$('detailModal'))$('detailModal').classList.remove('open')});
 $('search').addEventListener('input',render);
  $('imageUrl').addEventListener('input',()=>showImagePreview(safeUrl($('imageUrl').value.trim())||null));
 $('products').addEventListener('click',async e=>{
- const edit=e.target.dataset.edit,del=e.target.dataset.delete;
+ const view=e.target.dataset.view,edit=e.target.dataset.edit,del=e.target.dataset.delete;
+  if(view){const p=products.find(x=>x.id===view);if(p)openProductDetails(p);return}
  if(!isAdmin())return;
  if(edit){const p=products.find(x=>x.id===edit);if(p)openProduct(p)}
  if(del&&confirm('Delete this product from your showcase?')){
