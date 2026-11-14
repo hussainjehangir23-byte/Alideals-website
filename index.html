@@ -21,16 +21,21 @@ h1{font-size:clamp(38px,6vw,62px);line-height:1.04;letter-spacing:-2.7px;margin:
 .hero-inner{grid-template-columns:1fr 1fr}
 .hero-latest{min-width:0}
 .latest-heading{font-size:14px;font-weight:850;color:var(--purple);margin-bottom:12px}
-.latest-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.latest-item{min-width:0;background:#fff;border:1px solid #e8def6;border-radius:15px;padding:9px;display:flex;align-items:center;gap:10px;text-align:left;cursor:pointer;box-shadow:0 8px 20px #4c1d9510;transition:transform .18s,box-shadow .18s}
-.latest-item:hover{transform:translateY(-2px);box-shadow:0 12px 24px #4c1d9520}
-.latest-thumb{width:62px;height:62px;flex:0 0 62px;border-radius:10px;background:#f0ebf8;object-fit:cover}
-.latest-placeholder{display:flex;align-items:center;justify-content:center;color:#a78bfa;font-size:27px}
-.latest-info{min-width:0}
-.latest-name{font-size:12px;font-weight:800;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.latest-price{font-size:12px;font-weight:850;color:var(--purple);margin-top:5px}
-.latest-empty{background:#fff9;border:1px dashed #cbb8e8;border-radius:16px;padding:25px 15px;text-align:center;color:#716b80;font-size:13px}
-@media(max-width:760px){.hero-inner{grid-template-columns:1fr}.latest-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.latest-board{position:relative;min-height:300px;background:#fff;border:1px solid #e8def6;border-radius:20px;overflow:hidden;box-shadow:0 12px 30px #4c1d9518}
+.latest-slide{width:100%;min-height:300px;display:grid;grid-template-columns:1.05fr .95fr;text-align:left;border:0;background:#fff;padding:0;cursor:pointer;animation:latestFade .45s ease}
+.latest-slide-image{width:100%;height:300px;object-fit:cover;background:#f0ebf8}
+.latest-slide-placeholder{display:flex;align-items:center;justify-content:center;color:#a78bfa;font-size:70px}
+.latest-slide-info{padding:26px;display:flex;flex-direction:column;justify-content:center;min-width:0}
+.latest-slide-tag{font-size:11px;font-weight:850;letter-spacing:1.2px;text-transform:uppercase;color:var(--purple)}
+.latest-slide-name{font-size:clamp(20px,2.6vw,30px);font-weight:850;line-height:1.2;margin:12px 0;overflow-wrap:anywhere}
+.latest-slide-price{font-size:22px;font-weight:850;color:var(--purple);margin-bottom:18px}
+.latest-slide-hint{font-size:12px;color:var(--muted);font-weight:700}
+.latest-dots{position:absolute;bottom:13px;right:20px;display:flex;gap:6px}
+.latest-dot{width:8px;height:8px;border-radius:50%;background:#d8cbed}
+.latest-dot.active{background:var(--purple);width:20px;border-radius:8px}
+.latest-empty{min-height:300px;display:flex;align-items:center;justify-content:center;padding:25px;text-align:center;color:#716b80;font-size:14px}
+@keyframes latestFade{from{opacity:.45;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
+@media(max-width:760px){.hero-inner{grid-template-columns:1fr}.latest-slide{grid-template-columns:1fr}.latest-slide-image{height:210px}.latest-board,.latest-slide,.latest-empty{min-height:0}.latest-slide-info{padding:18px 20px 38px}.latest-dots{bottom:13px;right:20px}}
 
 main{padding:35px 0 70px}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:22px;flex-wrap:wrap}
 h2{font-size:25px;letter-spacing:-.7px;margin:0}.count{font-size:13px;color:var(--muted);margin-top:5px}
@@ -70,7 +75,7 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:13px}label{font-size:12px;fo
 </div></header>
 <section class="hero"><div class="wrap hero-inner">
 <div><div class="eyebrow">Find your next great find</div><h1>Good finds.<br>Great deals.</h1><p>Explore hand-picked products and discover something you’ll love. When you’re ready, shop directly with the retailer.</p></div>
-<div class="hero-latest"><div class="latest-heading">New arrivals · Latest 4</div><div class="latest-grid" id="latestProducts"><div class="latest-empty">Latest products will appear here.</div></div></div>
+<div class="hero-latest"><div class="latest-heading">New arrivals · Latest 4</div><div class="latest-board" id="latestProducts"><div class="latest-empty">Latest products will appear here.</div></div></div>
 </div></section>
 <main class="wrap">
 <div class="toolbar"><div><h2>Featured finds</h2><div class="count" id="count">0 products</div></div><input class="search" id="search" type="search" placeholder="Search products…"></div>
@@ -163,14 +168,28 @@ async function loadProducts(){
  if(error){console.error(error);$('products').innerHTML='<div class="empty">Could not load products. Please refresh the page.</div>';return}
  products=data||[];render();
 }
+let latestSlideIndex=0;
+let latestSlideTimer=null;
 function renderLatestProducts(){
  const latest=products.slice(0,4);
- $('latestProducts').innerHTML=latest.length?latest.map(p=>{
+ if(latestSlideTimer){clearInterval(latestSlideTimer);latestSlideTimer=null}
+ if(!latest.length){
+  $('latestProducts').innerHTML='<div class="latest-empty">Your newest 4 products will appear here after you add them.</div>';
+  return;
+ }
+ const showSlide=()=>{
+  const p=latest[latestSlideIndex%latest.length];
   const image=safeUrl(temporaryImages[p.id]||p.image_url||'');
-  return '<button type="button" class="latest-item" data-latest-view="'+escapeHtml(String(p.id))+'">'+
-   (image?'<img class="latest-thumb" src="'+escapeHtml(image)+'" alt="">':'<span class="latest-thumb latest-placeholder">✦</span>')+
-   '<span class="latest-info"><span class="latest-name">'+escapeHtml(p.name||'Product')+'</span><span class="latest-price">'+escapeHtml(p.price||'')+'</span></span></button>';
- }).join(''):'<div class="latest-empty">Your newest 4 products will appear here after you add them.</div>';
+  $('latestProducts').innerHTML='<button type="button" class="latest-slide" data-latest-view="'+escapeHtml(String(p.id))+'">'+
+   (image?'<img class="latest-slide-image" src="'+escapeHtml(image)+'" alt="'+escapeHtml(p.name||'Product')+'">':'<div class="latest-slide-image latest-slide-placeholder">✦</div>')+
+   '<span class="latest-slide-info"><span class="latest-slide-tag">New arrival · '+(latestSlideIndex+1)+' of '+latest.length+'</span><span class="latest-slide-name">'+escapeHtml(p.name||'Product')+'</span>'+
+   (p.price?'<span class="latest-slide-price">'+escapeHtml(p.price)+'</span>':'')+
+   '<span class="latest-slide-hint">Click to view product details ↗</span></span></button>'+
+   '<div class="latest-dots">'+latest.map((x,i)=>'<span class="latest-dot '+(i===latestSlideIndex?'active':'')+'"></span>').join('')+'</div>';
+ };
+ latestSlideIndex=latestSlideIndex%latest.length;
+ showSlide();
+ if(latest.length>1)latestSlideTimer=setInterval(()=>{latestSlideIndex=(latestSlideIndex+1)%latest.length;showSlide()},3000);
 }
 function render(){
  const term=$('search').value.trim().toLowerCase();
