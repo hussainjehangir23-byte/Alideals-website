@@ -235,7 +235,13 @@ $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeProduct()}
 $('search').addEventListener('input',render);
 $('refreshAnalytics').addEventListener('click',loadAnalytics);
  $('imageUrl').addEventListener('input',()=>showImagePreview(safeUrl($('imageUrl').value.trim())||null));
-$('latestProducts').addEventListener('click',e=>{\n const item=e.target.closest('[data-latest-view]');\n if(!item)return;\n const p=products.find(x=>String(x.id)===item.dataset.latestView);\n if(p)openProductDetails(p);\n});\n$('products').addEventListener('click',async e=>{
+$('latestProducts').addEventListener('click',e=>{
+ const item=e.target.closest('[data-latest-view]');
+ if(!item)return;
+ const p=products.find(x=>String(x.id)===item.dataset.latestView);
+ if(p)openProductDetails(p);
+});
+$('products').addEventListener('click',async e=>{
  const editButton=e.target.closest('[data-edit]'),deleteButton=e.target.closest('[data-delete]');
  if(editButton||deleteButton){
   if(!isAdmin())return;
